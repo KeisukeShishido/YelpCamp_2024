@@ -2,6 +2,7 @@ const express = require('express'); //expressをrequire
 const path = require('path');
 const mongoose = require('mongoose');
 const ejsMate = require('ejs-mate');
+const {campgroundSchema} = require('./schemas');
 const catchAsync = require('./utils/catchAsync');
 const ExpressError = require('./utils/ExpressError');
 const methodOverride = require('method-override');
@@ -26,6 +27,26 @@ app.set('views',path.join(__dirname,'views')); //path指定の方法
 app.use(express.urlencoded({extended: true}));
 app.use(methodOverride('_method'));
 
+const validateCampground = (req,res,next) => {
+    // const campgroundSchema = Joi.object({
+    //     campground: Joi.object({
+    //         title: Joi.string().required(),
+    //         price: Joi.number().required().min(0),
+    //         image: Joi.string().required(),
+    //         location: Joi.string().required(),
+    //         description:Joi.string().required()
+    //     }) .required()
+    // });
+
+    const {error} = campgroundSchema.validate(req.body);
+    if (error) {
+        const msg = error.details.map(details => details.message).join(',');
+        throw new ExpressError(msg , 404);
+    } else {
+        next();
+    }
+};
+
 app.get('/', (req,res) => {
     res.render('home');
 });
@@ -45,8 +66,24 @@ app.get('/campgrounds/:id',catchAsync( async(req,res) => {
     res.render('campgrounds/show',{campground});
 }));
 
-app.post('/campgrounds',catchAsync(async (req,res) => {
-    if (!req.body.campground) throw new ExpressError('不正なキャンプ場のデータです。',400);
+app.post('/campgrounds',validateCampground, catchAsync(async (req,res) => {
+    // if (!req.body.campground) throw new ExpressError('不正なキャンプ場のデータです。',400);
+    // const campgroundSchema = Joi.object({
+    //     campground: Joi.object({
+    //         title: Joi.string().required(),
+    //         price: Joi.number().required().min(0),
+    //         image: Joi.string().required(),
+    //         location: Joi.string().required(),
+    //         description:Joi.string().required()
+    //     }) .required()
+    // });
+
+    // const {error} = campgroundSchema.validate(req.body);
+    // if (error) {
+    //     const msg = error.details.map(details => details.message).join(',');
+    //     throw new ExpressError(msg , 404);
+    // }
+    // console.log(result.error.details);
     const campground = new Campground(req.body.campground);
     await campground.save();
     res.redirect(`/campgrounds/${campground._id}`);
@@ -58,7 +95,7 @@ app.get('/campgrounds/:id/edit',catchAsync( async (req,res) => {
 }));
 
 
-app.put('/campgrounds/:id', catchAsync (async (req,res) => {
+app.put('/campgrounds/:id', validateCampground, catchAsync (async (req,res) => {
     const {id} = req.params;
     const campground = await Campground.findByIdAndUpdate(id, {...req.body.campground});
     res.redirect(`/campgrounds/${campground._id}`);
@@ -75,8 +112,11 @@ app.all('*',(req,res,next) => {
 });
 
 app.use((err,req,res,next) => {
-    const {statusCode = 500 ,message = '問題が起きました。'} = err;
-    res.status(statusCode).send(message);
+    const {statusCode = 500 } = err;
+    if(!err.message) {
+        err.message = '問題が起きました。'
+    }
+    res.status(statusCode).render('error',{err});
 }); 
 
 app.listen(3000, () => {
