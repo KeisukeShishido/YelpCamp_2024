@@ -1,4 +1,8 @@
 const Campground = require('../models/campground');
+const mbxGeocoding = require('@mapbox/mapbox-sdk/services/geocoding');
+const mapboxToken = process.env.MAPBOX_TOKEN;
+const geocoder = mbxGeocoding({ accessToken: mapboxToken})
+
 const { cloudinary } = require('../cloudinary');
 
 module.exports.index = async (req, res) => {
@@ -26,10 +30,13 @@ module.exports.showCampground = async (req, res) => {
 }
 
 module.exports.createCampground = async (req, res) => {
-    req.files
-    // if (!req.body.campground) throw new ExpressError('不正なキャンプ場のデータです', 400);
+    const geoData = await geocoder.forwardGeocode({
+        query: req.body.campground.location,
+        limit: 1
+    }).send();
     const campground = new Campground(req.body.campground);
-    campground.images = req.files.map(f => ({url: f.path, filename: f.filename}));
+    campground.geometry = geoData.body.features[0].geometry;
+    campground.images = req.files.map(f => ({ url: f.path, filename: f.filename }));
     campground.author = req.user._id;
     await campground.save();
     console.log(campground);
@@ -52,14 +59,14 @@ module.exports.updateCampground = async (req, res) => {
     console.log(req.body);
     const { id } = req.params;
     const campground = await Campground.findByIdAndUpdate(id, { ...req.body.campground });
-    const imgs = req.files.map(f => ({url: f.path, filename: f.filename}));
+    const imgs = req.files.map(f => ({ url: f.path, filename: f.filename }));
     campground.images.push(...imgs);
     await campground.save();
-    if (req.body.deleteImages){
+    if (req.body.deleteImages) {
         for (let filename of req.body.deleteImages) {
             await cloudinary.uploader.destroy(filename);
         }
-        await campground.updateOne({$pull: { images: {filename: {$in: req.body.deleteImages}}}})
+        await campground.updateOne({ $pull: { images: { filename: { $in: req.body.deleteImages } } } })
     }
     req.flash('success', 'キャンプ場を更新しました');
     res.redirect(`/campgrounds/${campground._id}`);
