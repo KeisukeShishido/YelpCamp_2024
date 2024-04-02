@@ -29,8 +29,8 @@ map.addControl(new mapboxgl.NavigationControl());
 const marker1 = new mapboxgl.Marker()
     .setLngLat(mmm.geometry.coordinates)
     .setPopup(
-        new mapboxgl.Popup({ offset: 10 }).setHTML(
-        `<h6>${mmm.title}</h6><p>${mmm.location}</p>`)
+        new mapboxgl.Popup({ offset: 10 })
+        .setHTML(`<h6>${mmm.title}</h6><p>${mmm.location}</p>`)
     )
     .addTo(map)
 
